@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/home-operations/yayamlls/internal/lint"
@@ -60,6 +61,7 @@ func main() {
 	commonlog.Configure(verbosity, logPath)
 
 	s := lsp.New(version, registry)
+	slog.SetDefault(s.Logger())
 	srv := server.NewServer(s.Handler(), "yayamlls", false)
 	if err := srv.RunStdio(); err != nil {
 		fmt.Fprintf(os.Stderr, "server stopped with error: %v\n", err)

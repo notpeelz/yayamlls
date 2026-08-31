@@ -2,6 +2,8 @@ package lsp
 
 import (
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/home-operations/yayamlls/internal/actions"
@@ -249,8 +251,10 @@ func (s *Server) reloadWorkspaceConfig(ctx *glsp.Context) {
 		// A parse error (e.g. a typo saved into .yayamlls.yaml) must not
 		// silently wipe the working config. Keep the prior workspace layer and
 		// surface the failure, mirroring the initialize path.
-		notifyShowMessage(ctx, protocol.MessageTypeWarning,
-			"yayamlls: failed to reload .yayamlls.yaml (keeping previous settings): "+err.Error())
+		slog.Warn(
+			fmt.Sprintf("failed to reload .yayamlls.yaml: %s", err),
+			slog.Bool("lsp.showMessage", true),
+		)
 		return
 	}
 	s.setWorkspaceLayer(loaded)

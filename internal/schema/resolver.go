@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"sort"
@@ -72,11 +73,10 @@ func k8sTemplateFor(s config.Settings) *k8sTemplate {
 	tmpl, err := parseK8sTemplate(spec)
 	if err != nil {
 		slog.Warn(
-			"schema: invalid kubernetes.schemaUrl template",
-			"template",
-			spec,
-			"error",
-			err)
+			fmt.Sprintf("invalid kubernetes.schemaUrl template: %s", err),
+			slog.String("template", spec),
+			slog.Bool("lsp.showMessage", true),
+		)
 		return nil
 	}
 	return tmpl

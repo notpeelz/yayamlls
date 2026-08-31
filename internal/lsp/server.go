@@ -3,6 +3,7 @@ package lsp
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -147,6 +148,7 @@ func (s *Server) kubernetesEnabled() bool {
 }
 
 func (s *Server) initialize(ctx *glsp.Context, params *protocol.InitializeParams) (any, error) {
+	s.captureNotify(ctx)
 	caps := s.handler.CreateServerCapabilities()
 	change := protocol.TextDocumentSyncKindIncremental
 	caps.TextDocumentSync = &protocol.TextDocumentSyncOptions{
@@ -193,8 +195,10 @@ func (s *Server) initialize(ctx *glsp.Context, params *protocol.InitializeParams
 	if root != "" {
 		ws, err = config.LoadFromWorkspace(root)
 		if err != nil {
-			notifyShowMessage(ctx, protocol.MessageTypeWarning,
-				"yayamlls: failed to load .yayamlls.yaml: "+err.Error())
+			slog.Warn(
+				fmt.Sprintf("failed to load .yayamlls.yaml: %s", err),
+				slog.Bool("lsp.showMessage", true),
+			)
 		}
 	}
 	s.settingsMu.Lock()
@@ -268,7 +272,7 @@ func (s *Server) applyLayers() {
 	// the trusted client layer reach the registry.
 	renderers, dropped := config.TrustedRenderers(ws, ov)
 	if len(dropped) > 0 {
-		s.warn(fmt.Sprintf("yayamlls: ignored workspace renderer command(s) %s from .yayamlls.yaml for safety; "+
+		slog.Warn(fmt.Sprintf("ignored workspace renderer command(s) %s from .yayamlls.yaml for safety; "+
 			"declare subprocess renderers in your editor/global config instead", strings.Join(dropped, ", ")))
 	}
 	if errs := s.renderer.Configure(renderers); len(errs) > 0 {
@@ -276,7 +280,7 @@ func (s *Server) applyLayers() {
 		for i, e := range errs {
 			msgs[i] = e.Error()
 		}
-		s.warn("yayamlls: renderer config rejected: " + strings.Join(msgs, "; "))
+		slog.Warn("renderer config rejected: " + strings.Join(msgs, "; "))
 	}
 	debounce := render.DefaultDebounce
 	if ms := effective.RenderDebounceMs; ms != nil && *ms > 0 {
@@ -308,29 +312,6 @@ func (s *Server) applySettingsRaw(raw json.RawMessage) {
 	s.overrides = settings
 	s.settingsMu.Unlock()
 	s.applyLayers()
-}
-
-// warn sends a best-effort window/showMessage warning over the captured
-// connection. It is a no-op before the connection's notify func has been
-// captured (e.g. during initialize), so callers use it for non-fatal config
-// problems that also surface on a later reload.
-func (s *Server) warn(msg string) {
-	if n := s.currentNotify(); n != nil {
-		n(protocol.ServerWindowShowMessage, protocol.ShowMessageParams{
-			Type:    protocol.MessageTypeWarning,
-			Message: msg,
-		})
-	}
-}
-
-func notifyShowMessage(ctx *glsp.Context, level protocol.MessageType, msg string) {
-	if ctx == nil || ctx.Notify == nil {
-		return
-	}
-	ctx.Notify(protocol.ServerWindowShowMessage, protocol.ShowMessageParams{
-		Type:    level,
-		Message: msg,
-	})
 }
 
 func (s *Server) initialized(ctx *glsp.Context, params *protocol.InitializedParams) error {
